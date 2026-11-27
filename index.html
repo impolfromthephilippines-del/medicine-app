@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -483,10 +482,11 @@ function persistLocalState() {
     localStorage.setItem('myCalendarEvents',JSON.stringify(events));
 }
 
-/* Supabase: only signed-in users can load or update their own row */
 async function loadFromCloud() {
     const status=document.getElementById('cloudStatus');
-    if(!supabaseClient||!currentUser){status.innerText="Status: Login required";return}
+    if(!window.supabase||!SUPABASE_URL||!SUPABASE_KEY){status.innerText="Status: Local Storage Only";return}
+    if(!supabaseClient)supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+    if(!currentUser){status.innerText="Status: Local Storage Only";return}
     try {
         const {data,error}=await supabaseClient.from('calendar_data').select('*').eq('id',1).single();
         if(error){console.warn("Supabase load error:",error.message,error.details||'');status.innerText="Status: Offline / Local Mode";return}
@@ -497,16 +497,23 @@ async function loadFromCloud() {
 async function saveToCloud() {
     persistLocalState();
     const status=document.getElementById('cloudStatus');
-    if(!supabaseClient||!currentUser)return;
+    if(!supabaseClient||!currentUser){status.innerText="Status: Saved Locally";return}
     isSavingToCloud=true;status.innerText="Status: Saving...";
     try {
         const latest=getLatestPhase(),cloudEvents=buildCloudEventsPayload();
-        const {error}=await supabaseClient.from('calendar_data').update({
+        const corePayload={
+            id:1,
             start_date:latest.start_date,
             med_days:latest.med_days,
             rest_days:latest.rest_days,
             events:cloudEvents
-        }).eq('id',1);
+        };
+        let {error}=await supabaseClient.from('calendar_data').upsert(corePayload,{onConflict:'id'});
+        if(error){
+            console.warn("Core upsert failed, trying events update:",error.message);
+            const fallbackRes=await supabaseClient.from('calendar_data').update({events:cloudEvents}).eq('id',1);
+            error=fallbackRes.error;
+        }
         if(error){console.error("Supabase save failed:",error.message,error.details||'');status.innerText="Status: Saved Locally (Cloud Error)"}
         else status.innerText="Status: Synced with Cloud ✅";
     } catch(e){console.error("Save exception:",e);status.innerText="Status: Saved Locally (Offline)"}
@@ -548,10 +555,15 @@ function getNextMilestone(fromDate) {
 function updateMilestoneBanner() {
     const el=document.getElementById('milestoneInfo');if(!el)return;
     const next=getNextMilestone(new Date());if(!next){el.style.display='none';return}
-    const key=MILESTONE_KEY_PREFIX+next.key+'_'+formatDateStr(next.date),fired=localStorage.getItem(key)==='1';
+    const firedKey=MILESTONE_KEY_PREFIX+next.key+'_'+formatDateStr(next.date);
+    const alreadyFired=localStorage.getItem(firedKey)==='1';
+    const isToday=formatDateStr(next.date)===formatDateStr(new Date());
+    const [alarmHour,alarmMinute]=next.time.split(':').map(Number);
+    const alarmHasPassedToday=isToday&&(new Date().getHours()*60+new Date().getMinutes()>=alarmHour*60+alarmMinute);
+    if(alreadyFired||alarmHasPassedToday){el.style.display='none';el.textContent='';return}
     const date=next.date.toLocaleDateString(undefined,{month:'short',day:'numeric'});
     el.style.display='inline-block';
-    el.textContent=fired?`⏰ ${next.label} on ${date} — already fired`:`⏰ Next alarm: ${next.label} on ${date} at ${next.time}`;
+    el.textContent=`⏰ Next alarm: ${next.label} on ${date} at ${next.time}`;
 }
 function updateDashboard() {
     const now=new Date(),today=formatDateStr(now),info=getCycleInfoForDate(now);
@@ -737,7 +749,6 @@ function getMilestoneForDate(info,nowMinutes) {
     return {key,label,body,time};
 }
 function checkDueAlarms() {
-    if(!document.body.classList.contains('authenticated'))return;
     const now=new Date(),today=formatDateStr(now),minutes=now.getHours()*60+now.getMinutes();let changed=false;
     const notes=Array.isArray(events[today])?events[today]:[];
     notes.forEach((raw,index)=>{
@@ -756,6 +767,7 @@ function checkDueAlarms() {
         }
     }
     if(changed){markLocalMutation();renderCalendar();if(selectedDateStr===today)renderModalList();saveToCloud()}
+    updateMilestoneBanner();
 }
 
 /* Authentication */
@@ -772,6 +784,9 @@ async function showApp() {
     appStarted=true;
     document.body.classList.add('authenticated');
     document.getElementById('loginPanel').style.display='none';
+    updateDashboard();
+    renderCalendar();
+    updateNotificationPermissionUI();
     await loadFromCloud();
     checkDueAlarms();
     window.setInterval(checkDueAlarms,15000);
