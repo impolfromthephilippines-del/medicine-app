@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Medicine Schedule</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        :root {
+            --card-bg: #111827;
+            --surface-2: #1f2937;
+            --border-subtle: rgba(148, 163, 184, 0.22);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --med-color: #facc15;
+            --med-border: #eab308;
+            --med-text: #422006;
+            --rest-color: #22c55e;
+            --rest-border: #16a34a;
+            --rest-text: #052e16;
+            --primary: #3b82f6;
+            --danger: #ef4444;
+            --holiday-bg: #e11d48;
+            --weekend-accent: #a855f7;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 20px;
+            margin: 0;
+            min-height: 100vh;
+            position: relative;
+
+            background-color: #090d16;
+            background-image:
+                radial-gradient(circle at 14% 12%, rgba(59, 130, 246, 0.14), transparent 44%),
+                radial-gradient(circle at 86% 16%, rgba(34, 197, 94, 0.11), transparent 44%),
+                radial-gradient(circle at 50% 90%, rgba(168, 85, 247, 0.12), transparent 50%),
+                url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%2394a3b8' stroke-opacity='0.09' stroke-width='1'%3E%3Ccircle cx='24' cy='24' r='14'/%3E%3Cpath d='M84 16 C94 20, 98 32, 92 42 C82 38, 78 26, 84 16 Z'/%3E%3Cpath d='M26 88 C36 82, 46 88, 44 100 C34 104, 24 98, 26 88 Z'/%3E%3Ccircle cx='88' cy='88' r='10'/%3E%3C/g%3E%3Cg fill='%23cbd5e1' fill-opacity='0.08'%3E%3Ccircle cx='60' cy='20' r='1.5'/%3E%3Ccircle cx='20' cy='60' r='1.5'/%3E%3Ccircle cx='100' cy='60' r='1.5'/%3E%3Ccircle cx='60' cy='100' r='1.5'/%3E%3C/g%3E%3C/svg%3E");
+            background-attachment: fixed;
+        }
+
+        .dashboard {
+            background: rgba(17, 24, 39, 0.86);
+            backdrop-filter: blur(12px);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.45);
+            margin-bottom: 30px;
+            text-align: center;
+            width: 100%;
+            max-width: 800px;
+            border: 1px solid var(--border-subtle);
+        }
+        .dashboard h2 { 
+            margin-top: 0; 
+            font-size: 22px; 
+            color: var(--text-muted); 
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .status-box {
+            font-size: 28px;
+            font-weight: 700;
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 14px;
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+            transition: transform 0.2s;
+        }
+        .status-medicine { background-color: var(--med-color); color: var(--med-text); border: 1px solid var(--med-border); }
+        .status-rest { background-color: var(--rest-color); color: var(--rest-text); border: 1px solid var(--rest-border); }
+        .status-sub { font-size: 15px; color: var(--text-muted); font-weight: 500; }
+        .milestone-info {
+            margin-top: 10px;
+            display: inline-block;
+            background: rgba(59, 130, 246, 0.16);
+            color: #bfdbfe;
+            border: 1px solid rgba(96, 165, 250, 0.45);
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .today-holiday-banner {
+            margin-top: 12px;
+            display: inline-block;
+            background: rgba(225, 29, 72, 0.18);
+            color: #fda4af;
+            border: 1px solid rgba(251, 113, 133, 0.4);
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 800px;
+        }
+        .calendar-header h2 { margin: 0; font-size: 26px; font-weight: 700; flex-grow: 1; text-align: center; color: var(--text-main); }
+        
+        .calendar-header button {
+            background: var(--primary); color: white; border: none; padding: 12px 20px;
+            border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 600;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.35); transition: all 0.2s;
+        }
+        .calendar-header button:hover { background: #2563eb; transform: translateY(-2px); box-shadow: 0 6px 14px rgba(59, 130, 246, 0.45); }
+        
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            background-color: transparent;
+            background-image:
+                radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.09), transparent 45%),
+                radial-gradient(circle at 80% 75%, rgba(168, 85, 247, 0.09), transparent 45%),
+                url("data:image/svg+xml,%3Csvg width='96' height='96' viewBox='0 0 96 96' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23cbd5e1' stroke-opacity='0.08' stroke-width='1'%3E%3Cpath d='M16 24 Q28 12 40 24 Q28 36 16 24 Z'/%3E%3Ccircle cx='72' cy='24' r='8' stroke-dasharray='2 3'/%3E%3Cpath d='M68 72 L76 64 M76 72 L68 64'/%3E%3Ccircle cx='24' cy='72' r='6'/%3E%3C/g%3E%3C/svg%3E");
+            backdrop-filter: blur(8px);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.45);
+            width: 100%;
+            max-width: 800px;
+            border: 1px solid var(--border-subtle);
+        }
+        .day-name { 
+            font-weight: 700; text-align: center; padding: 10px 4px; 
+            color: var(--text-muted); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; 
+        }
+        .day-name.weekend-header { color: #c084fc; }
+        
+        .day {
+            min-height: 92px; padding: 8px; border: 1px solid transparent; border-radius: 12px;
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+            position: relative; cursor: pointer; overflow: hidden; min-width: 0; 
+            transition: all 0.2s ease; background: rgba(30, 41, 59, 0.75);
+        }
+        .day:hover { transform: scale(1.03); box-shadow: 0 6px 14px rgba(0,0,0,0.45); z-index: 10; }
+        .day-number { font-weight: 700; font-size: 16px; }
+        .day.other-month { color: #475569; background: rgba(15, 23, 42, 0.35); cursor: default; }
+        .day.other-month:hover { transform: none; box-shadow: none; }
+        
+        .day.medicine { background-color: var(--med-color); color: var(--med-text); border-color: var(--med-border); }
+        .day.rest { background-color: var(--rest-color); color: var(--rest-text); border-color: var(--rest-border); }
+
+        .day.weekend:not(.other-month) {
+            box-shadow: inset 0 0 0 2px var(--weekend-accent);
+        }
+        .day.weekend:not(.other-month) .day-number {
+            text-decoration: underline;
+            text-decoration-thickness: 2px;
+            text-underline-offset: 3px;
+        }
+
+        .day.has-event { border: 2px solid var(--primary) !important; }
+        .day.is-holiday { box-shadow: inset 0 0 0 2px rgba(244, 63, 94, 0.65); }
+        .day.weekend.is-holiday:not(.other-month) {
+            box-shadow: inset 0 0 0 2px var(--weekend-accent), 0 0 0 2px rgba(244, 63, 94, 0.45);
+        }
+        
+        .event-label-container { width: 100%; display: flex; flex-direction: column; gap: 3px; margin-top: auto; }
+        .holiday-label {
+            font-size: 10px; background: var(--holiday-bg); color: white; padding: 2px 4px; border-radius: 6px;
+            text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+            font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+        }
+        .event-label {
+            font-size: 10px; background: var(--primary); color: white; padding: 3px 4px; border-radius: 6px;
+            text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+            font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+        }
+
+        .day.today { border: 3px solid var(--danger) !important; box-shadow: 0 0 14px rgba(239, 68, 68, 0.55); overflow: visible; z-index: 2; }
+        .today-badge {
+            font-size: 9px; background: var(--danger); color: white; padding: 3px 8px;
+            border-radius: 12px; position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4); pointer-events: none;
+        }
+        .day.today .day-number { margin-top: 6px; }
+        
+        .main-controls { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 800px; margin-top: 25px; }
+        
+        .main-settings-btn {
+            background: #1e293b; color: #f8fafc; border: 1px solid var(--border-subtle); padding: 15px;
+            border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 16px;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35); transition: all 0.2s;
+        }
+        .main-settings-btn:hover { background: #334155; transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45); }
+        
+        .main-cloud-status {
+            text-align: center; font-size: 13px; color: #93c5fd; font-weight: 600;
+            padding: 10px; background: rgba(17, 24, 39, 0.85); border-radius: 10px; border: 1px solid var(--border-subtle);
+        }
+        .notification-permission-btn {
+            background: #1e293b; color: #f8fafc; border: 1px solid rgba(59, 130, 246, 0.55);
+            padding: 12px 15px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px;
+        }
+        .notification-permission-btn:hover { background: #334155; }
+        .notification-permission-btn:disabled { opacity: .55; cursor: not-allowed; }
+        .notification-help { color: var(--text-muted); font-size: 12px; text-align: center; line-height: 1.5; }
+        .alarm-toast {
+            display: none; position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+            z-index: 2000; width: min(92vw, 520px); padding: 14px 16px; border-radius: 12px;
+            background: #1d4ed8; color: white; font-weight: 600; text-align: center;
+            box-shadow: 0 12px 30px rgba(0,0,0,.45);
+        }
+        .new-note-alarm {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            flex-wrap: wrap; margin: -6px 0 18px; padding: 12px; border-radius: 10px;
+            background: #0f172a; border: 1px solid var(--border-subtle); text-align: left;
+        }
+        .new-note-alarm label, .note-alarm-toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--text-main); font-size: 13px; font-weight: 600; }
+        .new-note-alarm input[type="time"], .note-alarm-time {
+            padding: 8px 10px; border-radius: 8px; border: 1px solid #475569;
+            background: #0f172a; color: var(--text-main); font: inherit;
+        }
+        .new-note-alarm input[type="time"]:disabled, .note-alarm-time:disabled { opacity: .45; }
+        .note-create-panel { margin-bottom: 4px; }
+        .note-create-panel .modal-input-group { margin-bottom: 10px; }
+        .event-list-item { flex-direction: column; align-items: stretch; }
+        .note-main-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; }
+        .note-alarm-row { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 10px; padding-top: 8px; border-top: 1px solid rgba(148,163,184,.14); }
+        .note-alarm-time { font-size: 13px; }
+        .note-alarm-status { color: var(--text-muted); font-size: 12px; }
+        .alarm-enabled-label { color: #86efac !important; }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(2, 6, 23, 0.78); backdrop-filter: blur(6px); display: none;
+            justify-content: center; align-items: center; z-index: 1000; padding: 20px; 
+        }
+        .modal-content {
+            background: var(--card-bg); color: var(--text-main); padding: 30px; border-radius: 20px;
+            width: 100%; max-width: 450px; max-height: 90vh; overflow-y: auto;
+            text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.65);
+            border: 1px solid var(--border-subtle);
+        }
+        .modal-content h3 { margin-top: 0; margin-bottom: 20px; color: var(--text-main); font-size: 22px;}
+        
+        .holiday-modal-box {
+            background: rgba(225, 29, 72, 0.16);
+            border: 1px solid rgba(251, 113, 133, 0.35);
+            color: #fda4af;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: left;
+        }
+        .weekend-modal-box {
+            background: rgba(168, 85, 247, 0.16);
+            border: 1px solid rgba(192, 132, 252, 0.35);
+            color: #d8b4fe;
+            border-radius: 10px;
+            padding: 8px 12px;
+            margin-bottom: 14px;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: left;
+        }
+
+        .modal-input-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        .modal-input-group input {
+            flex: 1; min-width: 0; padding: 14px; font-size: 16px; font-family: 'Inter', sans-serif;
+            border: 2px solid #334155; background: #0f172a; color: var(--text-main);
+            border-radius: 10px; transition: border-color 0.2s;
+        }
+        .modal-input-group input:focus { border-color: var(--primary); outline: none; }
+        
+        .modal-buttons { display: flex; gap: 10px; margin-bottom: 10px; }
+        .modal-buttons button, .btn-close-modal {
+            padding: 14px; font-size: 16px; font-weight: 600; border-radius: 10px; border: none; cursor: pointer; transition: 0.2s;
+        }
+        .btn-cancel, .btn-close-modal { background: #334155; color: #f8fafc; }
+        .btn-cancel:hover, .btn-close-modal:hover { background: #475569; }
+        
+        .btn-add { 
+            background: var(--primary); 
+            color: white; 
+            flex: 0 0 auto; 
+            width: 54px; 
+            font-size: 28px; 
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        .btn-add:hover { background: #2563eb; }
+        
+        .current-events-list {
+            text-align: left; margin-bottom: 20px; max-height: 200px; overflow-y: auto;
+            background: #0f172a; border-radius: 12px; padding: 15px; border: 1px solid var(--border-subtle);
+        }
+        .current-events-list h4 { margin: 0 0 12px 0; font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;}
+        .event-list-item {
+            display: flex; justify-content: space-between; align-items: center; gap: 10px;
+            background: #1e293b; padding: 12px; border-radius: 8px; margin-bottom: 8px;
+            border: 1px solid rgba(148, 163, 184, 0.16); font-size: 15px; color: var(--text-main);
+        }
+        .note-text { flex: 1; font-weight: 500;}
+        .note-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+        .note-actions button { padding: 8px 10px; border-radius: 6px; font-size: 14px; border: none; cursor: pointer; transition: 0.2s;}
+        .edit-note-btn { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; }
+        .edit-note-btn:hover { background: rgba(56, 189, 248, 0.32); }
+        .save-note-btn { background: rgba(34, 197, 94, 0.22); color: #86efac; font-weight: bold;}
+        .save-note-btn:hover { background: rgba(34, 197, 94, 0.34); }
+        .cancel-edit-btn { background: #334155; color: #f1f5f9; }
+        .cancel-edit-btn:hover { background: #475569; }
+        .delete-note-btn { background: rgba(239, 68, 68, 0.22); color: #fca5a5; }
+        .delete-note-btn:hover { background: rgba(239, 68, 68, 0.34); }
+        .edit-note-input { flex: 1; padding: 8px 10px; font-size: 15px; border: 2px solid var(--primary); background: #0f172a; color: var(--text-main); border-radius: 6px; min-width: 0; font-family: 'Inter', sans-serif;}
+
+        .settings-panel { text-align: left; }
+        .settings-panel h3 { text-align: center; }
+        .settings-row { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+        .settings-row > div { flex: 1; min-width: 130px; }
+        .settings-row label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: var(--text-muted); }
+        .settings-row input, .settings-row select {
+            width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #334155;
+            font-size: 15px; font-family: 'Inter', sans-serif; background: #0f172a; color: var(--text-main);
+        }
+        .settings-row input:focus, .settings-row select:focus { border-color: var(--primary); outline: none; }
+        .cycle-meta { font-size: 13px; color: #cbd5e1; margin-bottom: 15px; background: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid var(--border-subtle); line-height: 1.5;}
+        .btn-update-schedule { background: var(--primary); color: white; padding: 14px; border-radius: 10px; font-weight: 600; border: none; cursor: pointer; width: 100%; font-size: 16px; transition: 0.2s;}
+        .btn-update-schedule:hover { background: #2563eb; }
+        
+        .phases-list { margin-top: 20px; background: #0f172a; border: 1px solid var(--border-subtle); border-radius: 12px; padding: 15px; }
+        .phases-list h4 { margin: 0 0 12px 0; font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;}
+        .phase-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #1e293b; padding: 10px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, 0.16); margin-bottom: 8px; font-size: 13px; color: var(--text-main); }
+        .phase-del-btn { background: rgba(239, 68, 68, 0.22); color: #fca5a5; border: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; font-weight: 600;}
+        .rollback-actions { display: flex; gap: 10px; margin-top: 15px; }
+        .btn-undo { background: #1e293b; color: var(--text-main); border: 1px solid #475569; border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 600; cursor: pointer; flex: 1; }
+        .btn-undo:disabled { opacity: 0.45; cursor: not-allowed; }
+        .btn-reset-default { background: rgba(245, 158, 11, 0.18); color: #fcd34d; border: 1px solid rgba(251, 191, 36, 0.35); border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 600; cursor: pointer; flex: 1; }
+
+        @media (max-width: 600px) {
+            body { padding: 15px 10px; }
+            .dashboard { padding: 20px 15px; margin-bottom: 20px; }
+            .dashboard h2 { font-size: 18px; }
+            .status-box { font-size: 20px; padding: 15px; }
+            .calendar-header { margin-bottom: 15px; }
+            .calendar-header h2 { font-size: 20px; }
+            .calendar-header button { padding: 8px 12px; font-size: 13px; }
+            .calendar { padding: 10px; gap: 4px; border-radius: 16px; }
+            .day-name { padding: 6px 2px; font-size: 11px; }
+            .day { min-height: 68px; padding: 4px; border-radius: 8px; }
+            .day-number { font-size: 13px; }
+            .today-badge { font-size: 8px; padding: 2px 5px; top: -8px; }
+            .event-label, .holiday-label { font-size: 8px; padding: 2px; border-radius: 4px; }
+            .main-controls { margin-top: 15px; gap: 8px; }
+            .new-note-alarm { align-items: flex-start; }
+            .note-main-row { align-items: flex-start; }
+            .note-alarm-row { gap: 8px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard">
+        <h2>My Medicine Schedule</h2>
+        <div id="todayStatus" class="status-box">Calculating...</div>
+        <div class="status-sub">Day <span id="cycleDay"></span> of the <span id="totalCycleText"></span>-day cycle</div>
+        <div id="milestoneInfo" class="milestone-info" style="display:none;"></div>
+        <div id="todayHolidayBanner" class="today-holiday-banner" style="display: none;"></div>
+    </div>
+
+    <div class="calendar-header">
+        <button id="prevMonth" type="button">← Prev</button>
+        <h2 id="monthTitle">Month Year</h2>
+        <button id="nextMonth" type="button">Next →</button>
+    </div>
+
+    <div class="calendar" id="calendarGrid"></div>
+
+    <div class="main-controls">
+        <button class="main-settings-btn" type="button" onclick="openSettingsModal()">⚙️ Schedule Settings</button>
+        <div class="main-cloud-status" id="cloudStatus">Status: Connecting...</div>
+        <button class="notification-permission-btn" id="notificationPermissionBtn" type="button" onclick="requestNotificationPermission()">🔔 Enable Alarm Notifications</button>
+        <div class="notification-help" id="notificationHelp">Alarms are checked while this calendar page is open. Keep the page open for reminders.</div>
+    </div>
+    <div class="alarm-toast" id="alarmToast" role="status" aria-live="polite"></div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-content settings-panel">
+            <h3>Schedule Settings</h3>
+            <div class="settings-row">
+                <div>
+                    <label for="startDateInput">Start Date</label>
+                    <input type="date" id="startDateInput">
+                </div>
+                <div>
+                    <label for="cycleOrderInput">First Phase</label>
+                    <select id="cycleOrderInput">
+                        <option value="medicine_first">Medicine First</option>
+                        <option value="rest_first">Rest First</option>
+                    </select>
+                </div>
+            </div>
+            <div class="settings-row">
+                <div>
+                    <label for="medDaysInput">Medicine Days</label>
+                    <input type="number" id="medDaysInput" value="28" min="1">
+                </div>
+                <div>
+                    <label for="restDaysInput">Rest Days</label>
+                    <input type="number" id="restDaysInput" value="21" min="1">
+                </div>
+            </div>
+            <div class="cycle-meta" id="cycleSummaryText"></div>
+            <button class="btn-update-schedule" type="button" onclick="saveSettings()">Update Schedule</button>
+
+            <div class="phases-list" id="phasesListContainer">
+                <h4>Active &amp; Upcoming Schedules:</h4>
+                <div id="phasesList"></div>
+                <div class="rollback-actions">
+                    <button type="button" class="btn-undo" id="undoScheduleBtn" onclick="undoScheduleChange()">↩ Undo</button>
+                    <button type="button" class="btn-reset-default" onclick="resetToDefaultSchedule()">Reset Default</button>
+                </div>
+            </div>
+
+            <button type="button" class="btn-close-modal" style="width: 100%; margin-top: 20px;" onclick="closeSettingsModal()">Close Settings</button>
+        </div>
+    </div>
+
+    <!-- Note Modal -->
+    <div class="modal-overlay" id="eventModal">
+        <div class="modal-content">
+            <h3 id="modalDate">Add Note</h3>
+            <div id="modalWeekendInfo" class="weekend-modal-box" style="display: none;">🗓️ Weekend</div>
+            <div id="modalHolidayInfo" class="holiday-modal-box" style="display: none;"></div>
+            <div class="current-events-list" id="currentEventsList" style="display: none;">
+                <h4>Notes for this day:</h4>
+                <div id="notesContainer"></div>
+            </div>
+            <div class="note-create-panel">
+                <div class="modal-input-group">
+                    <input type="text" id="modalEventText" placeholder="Type new note here...">
+                    <button class="btn-add" type="button" onclick="addModalEvent()" aria-label="Add note">+</button>
+                </div>
+                <div class="new-note-alarm">
+                    <label for="newAlarmEnabled"><input type="checkbox" id="newAlarmEnabled"> Set an alarm for this note</label>
+                    <input type="time" id="newAlarmTime" value="08:00" disabled aria-label="Alarm time">
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button type="button" class="btn-cancel" style="width: 100%;" onclick="closeModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://hxhwaasromnagvutifes.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_DTHj8qqeHJYnmFd7x3iwDA_TT_On6aE";
+        const DEFAULT_START_STR = "2026-10-09";
+        const PHASES_KEY = "__schedule_phases__";
+        const HISTORY_KEY = "__schedule_history__";
+
+        // --- Service Worker registration for PWA notifications ---
+        let swRegistration = null;
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then((registration) => {
+                        swRegistration = registration;
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.error('Service Worker registration failed:', error);
+                    });
+            });
+        }
+
+        function canonicalDateKey(rawKey) {
+            const trimmed = String(rawKey || '').trim();
+            const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(trimmed);
+            if (!match) return null;
+            const y = parseInt(match[1], 10);
+            const m = parseInt(match[2], 10);
+            const d = parseInt(match[3], 10);
+            if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+            return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        }
+
+        function extractNoteString(item) {
+            if (typeof item === 'string' || typeof item === 'number') {
+                return String(item).trim();
+            }
+            if (item && typeof item === 'object') {
+                const candidate = item.text ?? item.note ?? item.title ?? item.label ?? item.value ?? '';
+                return String(candidate).trim();
+            }
+            return '';
+        }
+
+        function normalizeNoteItem(item) {
+            const text = extractNoteString(item);
+            const rawTime = item && typeof item === 'object' ? String(item.alarmTime || '') : '';
+            const alarmTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(rawTime) ? rawTime : '';
+            const alarmEnabled = Boolean(item && typeof item === 'object' && item.alarmEnabled) && Boolean(alarmTime);
+            const alarmFiredOn = item && typeof item === 'object' ? canonicalDateKey(item.alarmFiredOn) : null;
+            return { text, alarmTime, alarmEnabled, alarmFiredOn };
+        }
+
+        function parseLocalDateStr(str) {
+            const key = canonicalDateKey(str);
+            if (!key) return new Date(2026, 9, 9);
+            const [y, m, d] = key.split('-').map(n => parseInt(n, 10));
+            return new Date(y, m - 1, d);
+        }
+
+        function formatDateStr(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function formatPrettyDate(dateStr) {
+            const d = parseLocalDateStr(dateStr);
+            return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+
+        function diffDaysUTC(startDate, targetDate) {
+            const utcA = Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+            const utcB = Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+            return Math.floor((utcB - utcA) / 86400000);
+        }
+
+        function isWeekendDate(dateObj) {
+            const day = dateObj.getDay();
+            return day === 0 || day === 6;
+        }
+
+        const MOVABLE_PH_HOLIDAYS = {
+            2026: {
+                "2026-02-17": "Chinese New Year",
+                "2026-03-20": "Eid'l Fitr (Tentative)",
+                "2026-04-02": "Maundy Thursday",
+                "2026-04-03": "Good Friday",
+                "2026-04-04": "Black Saturday",
+                "2026-05-27": "Eid'l Adha (Tentative)",
+                "2026-08-21": "Ninoy Aquino Day",
+                "2026-08-31": "National Heroes Day"
+            },
+            2027: {
+                "2027-02-06": "Chinese New Year",
+                "2027-03-10": "Eid'l Fitr (Tentative)",
+                "2027-03-25": "Maundy Thursday",
+                "2027-03-26": "Good Friday",
+                "2027-03-27": "Black Saturday",
+                "2027-05-17": "Eid'l Adha (Tentative)",
+                "2027-08-21": "Ninoy Aquino Day",
+                "2027-08-30": "National Heroes Day"
+            }
+        };
+
+        function getPHHolidaysForYear(year) {
+            const map = {
+                [`${year}-01-01`]: "New Year's Day",
+                [`${year}-02-25`]: "EDSA People Power Anniversary",
+                [`${year}-04-09`]: "Araw ng Kagitingan",
+                [`${year}-05-01`]: "Labor Day",
+                [`${year}-06-12`]: "Independence Day",
+                [`${year}-11-01`]: "All Saints' Day",
+                [`${year}-11-02`]: "All Souls' Day",
+                [`${year}-11-30`]: "Bonifacio Day",
+                [`${year}-12-08`]: "Feast of the Immaculate Conception",
+                [`${year}-12-25`]: "Christmas Day",
+                [`${year}-12-30`]: "Rizal Day",
+                [`${year}-12-31`]: "Last Day of the Year"
+            };
+            const movable = MOVABLE_PH_HOLIDAYS[year] || {};
+            for (const [k, v] of Object.entries(movable)) {
+                map[k] = v;
+            }
+            return map;
+        }
+
+        function getPHHolidayName(dateStr) {
+            const key = canonicalDateKey(dateStr);
+            if (!key) return null;
+            const year = parseInt(key.slice(0, 4), 10);
+            const holidays = getPHHolidaysForYear(year);
+            return holidays[key] || null;
+        }
+
+        function getCycleInfoForDate(dateObj) {
+            const phase = getActivePhaseForDate(dateObj) || {
+                start_date: DEFAULT_START_STR,
+                med_days: MED_DAYS,
+                rest_days: REST_DAYS,
+                cycle_order: cycleOrder
+            };
+            const phaseStart = parseLocalDateStr(phase.start_date);
+            const medDays = Math.max(1, parseInt(phase.med_days, 10) || 28);
+            const restDays = Math.max(1, parseInt(phase.rest_days, 10) || 21);
+            const totalCycle = medDays + restDays;
+            const rawDiff = diffDaysUTC(phaseStart, dateObj);
+            const modDay = ((rawDiff % totalCycle) + totalCycle) % totalCycle;
+            const cycleDay = modDay + 1;
+
+            let isMedicine = true;
+            let stretchDay = 1;
+            let stretchTotal = medDays;
+
+            if (phase.cycle_order === 'rest_first') {
+                if (modDay < restDays) {
+                    isMedicine = false;
+                    stretchDay = modDay + 1;
+                    stretchTotal = restDays;
+                } else {
+                    isMedicine = true;
+                    stretchDay = (modDay - restDays) + 1;
+                    stretchTotal = medDays;
+                }
+            } else {
+                if (modDay < medDays) {
+                    isMedicine = true;
+                    stretchDay = modDay + 1;
+                    stretchTotal = medDays;
+                } else {
+                    isMedicine = false;
+                    stretchDay = (modDay - medDays) + 1;
+                    stretchTotal = restDays;
+                }
+            }
+
+            return {
+                isMedicine,
+                stretchDay,
+                stretchTotal,
+                cycleDay,
+                totalCycle
+            };
+        }
+
+        function normalizePhases(rawPhases, fallbackMed, fallbackRest, fallbackStart, fallbackOrder) {
+            let list = Array.isArray(rawPhases) ? rawPhases : [];
+            const byDate = new Map();
+            for (const p of list) {
+                if (!p || typeof p !== 'object') continue;
+                const start = canonicalDateKey(p.start_date);
+                const med = parseInt(p.med_days, 10);
+                const rest = parseInt(p.rest_days, 10);
+                const order = p.cycle_order === 'rest_first' ? 'rest_first' : 'medicine_first';
+                if (start && med >= 1 && rest >= 1) {
+                    byDate.set(start, { start_date: start, med_days: med, rest_days: rest, cycle_order: order });
+                }
+            }
+            if (byDate.size === 0) {
+                const start = canonicalDateKey(fallbackStart) || DEFAULT_START_STR;
+                byDate.set(start, {
+                    start_date: start,
+                    med_days: parseInt(fallbackMed, 10) || 28,
+                    rest_days: parseInt(fallbackRest, 10) || 21,
+                    cycle_order: fallbackOrder === 'rest_first' ? 'rest_first' : 'medicine_first'
+                });
+            }
+            return Array.from(byDate.values()).sort((a, b) => a.start_date.localeCompare(b.start_date));
+        }
+
+        function clonePhases(phases) { return phases.map(p => ({ ...p })); }
+
+        function normalizeHistory(rawHistory, fallbackMed, fallbackRest, fallbackStart, fallbackOrder) {
+            if (!Array.isArray(rawHistory)) return [];
+            return rawHistory
+                .map(snapshot => normalizePhases(snapshot, fallbackMed, fallbackRest, fallbackStart, fallbackOrder))
+                .filter(list => list.length > 0)
+                .slice(-10);
+        }
+
+        function normalizeEvents(rawEvents) {
+            if (typeof rawEvents === 'string') {
+                try { rawEvents = JSON.parse(rawEvents); } catch { return {}; }
+            }
+            if (!rawEvents || typeof rawEvents !== 'object' || Array.isArray(rawEvents)) return {};
+            const cleaned = {};
+            for (const [rawKey, val] of Object.entries(rawEvents)) {
+                if (rawKey === PHASES_KEY || rawKey === HISTORY_KEY) continue;
+                const dateKey = canonicalDateKey(rawKey);
+                if (!dateKey) continue;
+
+                let items = [];
+                if (Array.isArray(val)) {
+                    items = val.map(normalizeNoteItem).filter(item => item.text);
+                } else {
+                    const single = normalizeNoteItem(val);
+                    if (single.text) items = [single];
+                }
+
+                if (items.length > 0) {
+                    if (!Array.isArray(cleaned[dateKey])) cleaned[dateKey] = [];
+                    cleaned[dateKey].push(...items);
+                }
+            }
+            return cleaned;
+        }
+
+        let MED_DAYS = parseInt(localStorage.getItem('myMedDays'), 10) || 28;
+        let REST_DAYS = parseInt(localStorage.getItem('myRestDays'), 10) || 21;
+        let startDateStr = canonicalDateKey(localStorage.getItem('myCycleStartDate')) || DEFAULT_START_STR;
+        let cycleOrder = localStorage.getItem('myCycleOrder') === 'rest_first' ? 'rest_first' : 'medicine_first';
+
+        let rawStoredEvents = JSON.parse(localStorage.getItem('myCalendarEvents') || '{}');
+        let storedPhases = JSON.parse(localStorage.getItem('mySchedulePhases') || 'null');
+        let storedHistory = JSON.parse(localStorage.getItem('myScheduleHistory') || 'null');
+
+        let schedulePhases = normalizePhases(storedPhases || rawStoredEvents[PHASES_KEY], MED_DAYS, REST_DAYS, startDateStr, cycleOrder);
+        let scheduleHistory = normalizeHistory(storedHistory || rawStoredEvents[HISTORY_KEY], MED_DAYS, REST_DAYS, startDateStr, cycleOrder);
+
+        let events = normalizeEvents(rawStoredEvents);
+        let currentMonth = new Date();
+        let supabaseClient = null;
+        let selectedDateStr = null;
+        let editingIndex = null;
+        let isSavingToCloud = false;
+        let lastMutationTime = 0;
+
+        function markLocalMutation() {
+            lastMutationTime = Date.now();
+            persistLocalState();
+        }
+
+        function getActivePhaseForDate(dateObj) {
+            const targetStr = formatDateStr(dateObj);
+            let active = null;
+            for (const phase of schedulePhases) {
+                if (phase.start_date <= targetStr) { active = phase; } else { break; }
+            }
+            return active;
+        }
+
+        function getLatestPhase() { return schedulePhases[schedulePhases.length - 1]; }
+
+        function pushHistorySnapshot() {
+            scheduleHistory.push(clonePhases(schedulePhases));
+            if (scheduleHistory.length > 10) scheduleHistory = scheduleHistory.slice(-10);
+        }
+
+        function updateUndoButtonState() {
+            const undoBtn = document.getElementById('undoScheduleBtn');
+            if (undoBtn) undoBtn.disabled = scheduleHistory.length === 0;
+        }
+
+        function renderPhasesList() {
+            const container = document.getElementById('phasesList');
+            container.innerHTML = '';
+            schedulePhases.forEach((phase, index) => {
+                const item = document.createElement('div');
+                item.className = 'phase-item';
+                const label = document.createElement('span');
+                const total = phase.med_days + phase.rest_days;
+                const orderDesc = phase.cycle_order === 'rest_first' ? `${phase.rest_days}d Rest → ${phase.med_days}d Med` : `${phase.med_days}d Med → ${phase.rest_days}d Rest`;
+                label.innerHTML = `<strong>From ${formatPrettyDate(phase.start_date)}:</strong> ${orderDesc} (${total}d)`;
+                item.appendChild(label);
+                if (schedulePhases.length > 1) {
+                    const delBtn = document.createElement('button');
+                    delBtn.type = 'button';
+                    delBtn.className = 'phase-del-btn';
+                    delBtn.textContent = 'Remove';
+                    delBtn.addEventListener('click', () => removeSchedulePhase(index));
+                    item.appendChild(delBtn);
+                }
+                container.appendChild(item);
+            });
+            updateUndoButtonState();
+        }
+
+        function removeSchedulePhase(index) {
+            if (schedulePhases.length <= 1) return;
+            pushHistorySnapshot();
+            schedulePhases.splice(index, 1);
+            syncInputsToLatestPhase();
+            renderPhasesList();
+            renderCalendar();
+            updateDashboard();
+            markLocalMutation();
+            saveToCloud();
+        }
+
+        function undoScheduleChange() {
+            if (scheduleHistory.length === 0) return;
+            const previousPhases = scheduleHistory.pop();
+            schedulePhases = normalizePhases(previousPhases, MED_DAYS, REST_DAYS, startDateStr, cycleOrder);
+            syncInputsToLatestPhase();
+            renderPhasesList();
+            renderCalendar();
+            updateDashboard();
+            markLocalMutation();
+            saveToCloud();
+        }
+
+        function resetToDefaultSchedule() {
+            if (!confirm("Reset schedule back to Oct 9, 2026 (28d Medicine → 21d Rest)?")) return;
+            pushHistorySnapshot();
+            schedulePhases = [{ start_date: DEFAULT_START_STR, med_days: 28, rest_days: 21, cycle_order: 'medicine_first' }];
+            syncInputsToLatestPhase();
+            renderPhasesList();
+            renderCalendar();
+            updateDashboard();
+            markLocalMutation();
+            saveToCloud();
+        }
+
+        function syncInputsToLatestPhase() {
+            const latest = getLatestPhase();
+            if (!latest) return;
+            MED_DAYS = latest.med_days; REST_DAYS = latest.rest_days; startDateStr = latest.start_date; cycleOrder = latest.cycle_order;
+            document.getElementById('medDaysInput').value = MED_DAYS;
+            document.getElementById('restDaysInput').value = REST_DAYS;
+            document.getElementById('startDateInput').value = startDateStr;
+            document.getElementById('cycleOrderInput').value = cycleOrder;
+            updateDraftSummaryUI();
+        }
+
+        function updateDraftSummaryUI() {
+            const draftMed = parseInt(document.getElementById('medDaysInput').value, 10) || MED_DAYS;
+            const draftRest = parseInt(document.getElementById('restDaysInput').value, 10) || REST_DAYS;
+            const draftStart = canonicalDateKey(document.getElementById('startDateInput').value) || startDateStr;
+            const draftOrder = document.getElementById('cycleOrderInput').value || cycleOrder;
+            const total = draftMed + draftRest;
+            const patternText = draftOrder === 'rest_first' ? `${draftRest} Rest days → ${draftMed} Medicine days` : `${draftMed} Medicine days → ${draftRest} Rest days`;
+            document.getElementById('cycleSummaryText').innerHTML = `Starts <strong>${formatPrettyDate(draftStart)}</strong> (${patternText}) • <strong>${total}</strong> days total<br><span style="color:#94a3b8;">Dates before ${formatPrettyDate(draftStart)} keep your existing schedule.</span>`;
+        }
+
+        function saveSettings() {
+            const med = parseInt(document.getElementById('medDaysInput').value, 10);
+            const rest = parseInt(document.getElementById('restDaysInput').value, 10);
+            const start = canonicalDateKey(document.getElementById('startDateInput').value);
+            const order = document.getElementById('cycleOrderInput').value === 'rest_first' ? 'rest_first' : 'medicine_first';
+
+            if (!start || med < 1 || rest < 1) {
+                alert("Please enter valid start date, medicine days (>= 1), and rest days (>= 1).");
+                return;
+            }
+
+            pushHistorySnapshot();
+            const filtered = schedulePhases.filter(p => p.start_date !== start);
+            filtered.push({ start_date: start, med_days: med, rest_days: rest, cycle_order: order });
+            schedulePhases = normalizePhases(filtered, med, rest, start, order);
+
+            syncInputsToLatestPhase();
+            renderPhasesList();
+            renderCalendar();
+            updateDashboard();
+            markLocalMutation();
+            saveToCloud();
+            closeSettingsModal();
+        }
+
+        function buildCloudEventsPayload() {
+            return { ...normalizeEvents(events), [PHASES_KEY]: schedulePhases, [HISTORY_KEY]: scheduleHistory };
+        }
+
+        function persistLocalState() {
+            const latest = getLatestPhase();
+            events = normalizeEvents(events);
+            localStorage.setItem('myMedDays', latest.med_days);
+            localStorage.setItem('myRestDays', latest.rest_days);
+            localStorage.setItem('myCycleStartDate', latest.start_date);
+            localStorage.setItem('myCycleOrder', latest.cycle_order);
+            localStorage.setItem('mySchedulePhases', JSON.stringify(schedulePhases));
+            localStorage.setItem('myScheduleHistory', JSON.stringify(scheduleHistory));
+            localStorage.setItem('myCalendarEvents', JSON.stringify(events));
+        }
+
+        async function loadFromCloud() {
+            const statusEl = document.getElementById('cloudStatus');
+            if (!window.supabase || !SUPABASE_URL || !SUPABASE_KEY) {
+                statusEl.innerText = "Status: Local Storage Only";
+                return;
+            }
+            try {
+                if (!supabaseClient) {
+                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                }
+                const { data, error } = await supabaseClient
+                    .from('calendar_data')
+                    .select('*')
+                    .eq('id', 1)
+                    .single();
+
+                if (error) {
+                    console.warn("Supabase load error:", error.message, error.details || '');
+                    statusEl.innerText = "Status: Offline / Local Mode";
+                    return;
+                }
+                if (data && !isSavingToCloud && (Date.now() - lastMutationTime > 5000)) {
+                    applyCloudRow(data);
+                    statusEl.innerText = "Status: Synced with Cloud ✅";
+                }
+                subscribeToRealtime();
+            } catch (e) {
+                statusEl.innerText = "Status: Offline / Local Mode";
+            }
+        }
+
+        async function saveToCloud() {
+            persistLocalState();
+            const statusEl = document.getElementById('cloudStatus');
+            if (!supabaseClient) return;
+            isSavingToCloud = true;
+            statusEl.innerText = "Status: Saving...";
+            try {
+                const latest = getLatestPhase();
+                const cloudEvents = buildCloudEventsPayload();
+
+                const corePayload = {
+                    id: 1,
+                    start_date: latest.start_date,
+                    med_days: latest.med_days,
+                    rest_days: latest.rest_days,
+                    events: cloudEvents
+                };
+
+                let { error } = await supabaseClient
+                    .from('calendar_data')
+                    .upsert(corePayload, { onConflict: 'id' });
+
+                if (error) {
+                    console.warn("Core upsert failed, trying events update:", error.message);
+                    const fallbackRes = await supabaseClient
+                        .from('calendar_data')
+                        .update({ events: cloudEvents })
+                        .eq('id', 1);
+                    error = fallbackRes.error;
+                }
+
+                if (error) {
+                    console.error("Supabase save failed:", error.message, error.details || '');
+                    statusEl.innerText = "Status: Saved Locally (Cloud Error)";
+                } else {
+                    statusEl.innerText = "Status: Synced with Cloud ✅";
+                }
+            } catch (e) {
+                console.error("Save exception:", e);
+                statusEl.innerText = "Status: Saved Locally (Offline)";
+            } finally {
+                setTimeout(() => { isSavingToCloud = false; }, 1000);
+            }
+        }
+
+        function applyCloudRow(row) {
+            if (!row) return;
+            const rawEv = typeof row.events === 'string' ? (() => { try { return JSON.parse(row.events); } catch { return {}; } })() : (row.events || {});
+            schedulePhases = normalizePhases(row.schedule_phases || rawEv[PHASES_KEY], row.med_days || MED_DAYS, row.rest_days || REST_DAYS, row.start_date || startDateStr, row.cycle_order || cycleOrder);
+            const cloudHistory = normalizeHistory(rawEv[HISTORY_KEY], MED_DAYS, REST_DAYS, startDateStr, cycleOrder);
+            if (cloudHistory.length > 0) scheduleHistory = cloudHistory;
+            events = normalizeEvents(rawEv);
+            persistLocalState();
+            syncInputsToLatestPhase();
+            renderPhasesList();
+            renderCalendar();
+            updateDashboard();
+            if (selectedDateStr && editingIndex === null) renderModalList();
+        }
+
+        function subscribeToRealtime() {
+            if (!supabaseClient || typeof supabaseClient.channel !== 'function') return;
+            try {
+                supabaseClient.channel('calendar-data-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_data', filter: 'id=eq.1' }, (payload) => {
+                    if (isSavingToCloud || (Date.now() - lastMutationTime < 5000)) return;
+                    if (payload && payload.new) {
+                        applyCloudRow(payload.new);
+                        document.getElementById('cloudStatus').innerText = "Status: Synced with Cloud ✅";
+                    }
+                }).subscribe();
+            } catch (err) {}
+        }
+
+        // Find the next First Medicine Day or Last Rest Day milestone.
+        function getNextMilestone(fromDate) {
+            const start = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate());
+            for (let offset = 0; offset <= 60; offset++) {
+                const d = new Date(start);
+                d.setDate(d.getDate() + offset);
+                const info = getCycleInfoForDate(d);
+                if (info.isMedicine && info.stretchDay === 1) {
+                    return { date: d, key: 'first_medicine', label: '💊 First Medicine Day', time: FIRST_MEDICINE_ALARM_TIME };
+                }
+                if (!info.isMedicine && info.stretchDay === info.stretchTotal) {
+                    return { date: d, key: 'last_rest', label: '🌿 Last Rest Day', time: LAST_REST_ALARM_TIME };
+                }
+            }
+            return null;
+        }
+
+        function updateMilestoneBanner() {
+            const el = document.getElementById('milestoneInfo');
+            if (!el) return;
+            const next = getNextMilestone(new Date());
+            if (!next) {
+                el.style.display = 'none';
+                return;
+            }
+
+            const firedKey = MILESTONE_KEY_PREFIX + next.key + '_' + formatDateStr(next.date);
+            const alreadyFired = localStorage.getItem(firedKey) === '1';
+            const dateLabel = next.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+            el.style.display = 'inline-block';
+            el.textContent = alreadyFired
+                ? `⏰ ${next.label} on ${dateLabel} — already fired`
+                : `⏰ Next alarm: ${next.label} on ${dateLabel} at ${next.time}`;
+        }
+
+        function updateDashboard() {
+            const now = new Date();
+            const todayStr = formatDateStr(now);
+            const info = getCycleInfoForDate(now);
+            const statusBox = document.getElementById('todayStatus');
+            const cycleDayEl = document.getElementById('cycleDay');
+            const totalCycleEl = document.getElementById('totalCycleText');
+            const holidayBanner = document.getElementById('todayHolidayBanner');
+
+            statusBox.classList.remove('status-medicine', 'status-rest');
+            if (info.isMedicine) {
+                statusBox.classList.add('status-medicine');
+                statusBox.textContent = `💊 Medicine Day ${info.stretchDay}`;
+            } else {
+                statusBox.classList.add('status-rest');
+                statusBox.textContent = `🌿 Rest Day ${info.stretchDay}`;
+            }
+            cycleDayEl.textContent = info.cycleDay;
+            totalCycleEl.textContent = info.totalCycle;
+
+            const holidayName = getPHHolidayName(todayStr);
+            if (holidayName) {
+                holidayBanner.style.display = 'inline-block';
+                holidayBanner.textContent = `🇵🇭 PH Holiday Today: ${holidayName}`;
+            } else {
+                holidayBanner.style.display = 'none';
+            }
+
+            updateMilestoneBanner();
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            const monthTitle = document.getElementById('monthTitle');
+            grid.innerHTML = '';
+
+            const year = currentMonth.getFullYear();
+            const month = currentMonth.getMonth();
+            monthTitle.textContent = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            dayNames.forEach((name, idx) => {
+                const el = document.createElement('div');
+                el.className = 'day-name';
+                if (idx === 0 || idx === 6) el.classList.add('weekend-header');
+                el.textContent = name;
+                grid.appendChild(el);
+            });
+
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const todayStr = formatDateStr(new Date());
+            const yearHolidays = getPHHolidaysForYear(year);
+
+            for (let i = 0; i < firstDayOfMonth; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'day other-month';
+                grid.appendChild(emptyCell);
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateObj = new Date(year, month, day);
+                const dateStr = formatDateStr(dateObj);
+                const cycleInfo = getCycleInfoForDate(dateObj);
+                const dayNotes = events[dateStr] || [];
+                const holidayName = yearHolidays[dateStr] || null;
+                const isWeekend = isWeekendDate(dateObj);
+
+                const cell = document.createElement('div');
+                cell.className = 'day ' + (cycleInfo.isMedicine ? 'medicine' : 'rest');
+                if (isWeekend) cell.classList.add('weekend');
+                if (dateStr === todayStr) cell.classList.add('today');
+                if (dayNotes.length > 0) cell.classList.add('has-event');
+                if (holidayName) cell.classList.add('is-holiday');
+
+                if (dateStr === todayStr) {
+                    const badge = document.createElement('span');
+                    badge.className = 'today-badge';
+                    badge.textContent = 'Today';
+                    cell.appendChild(badge);
+                }
+
+                const numEl = document.createElement('div');
+                numEl.className = 'day-number';
+                numEl.textContent = day;
+                cell.appendChild(numEl);
+
+                const tagsWrap = document.createElement('div');
+                tagsWrap.className = 'event-label-container';
+
+                if (holidayName) {
+                    const hTag = document.createElement('div');
+                    hTag.className = 'holiday-label';
+                    hTag.textContent = `🇵🇭 ${holidayName}`;
+                    hTag.title = holidayName;
+                    tagsWrap.appendChild(hTag);
+                }
+
+                dayNotes.slice(0, 2).forEach(rawNote => {
+                    const note = normalizeNoteItem(rawNote);
+                    const nTag = document.createElement('div');
+                    nTag.className = 'event-label';
+                    const alarmPrefix = note.alarmEnabled ? `⏰ ${note.alarmTime} • ` : '';
+                    nTag.textContent = `${alarmPrefix}${note.text}`;
+                    nTag.title = `${alarmPrefix}${note.text}`;
+                    tagsWrap.appendChild(nTag);
+                });
+
+                if (dayNotes.length > 2) {
+                    const moreTag = document.createElement('div');
+                    moreTag.className = 'event-label';
+                    moreTag.textContent = `+${dayNotes.length - 2} more`;
+                    tagsWrap.appendChild(moreTag);
+                }
+
+                cell.appendChild(tagsWrap);
+                cell.addEventListener('click', () => openModal(dateStr));
+                grid.appendChild(cell);
+            }
+        }
+
+        function openModal(dateStr) {
+            const key = canonicalDateKey(dateStr) || dateStr;
+            selectedDateStr = key;
+            editingIndex = null;
+            document.getElementById('modalDate').textContent = formatPrettyDate(key);
+
+            const dateObj = parseLocalDateStr(key);
+            const weekendBox = document.getElementById('modalWeekendInfo');
+            weekendBox.style.display = isWeekendDate(dateObj) ? 'block' : 'none';
+
+            const holidayBox = document.getElementById('modalHolidayInfo');
+            const holidayName = getPHHolidayName(key);
+            if (holidayName) {
+                holidayBox.style.display = 'block';
+                holidayBox.textContent = `🇵🇭 Philippine Holiday: ${holidayName}`;
+            } else {
+                holidayBox.style.display = 'none';
+                holidayBox.textContent = '';
+            }
+
+            document.getElementById('modalEventText').value = '';
+            document.getElementById('newAlarmEnabled').checked = false;
+            document.getElementById('newAlarmTime').value = '08:00';
+            document.getElementById('newAlarmTime').disabled = true;
+            renderModalList();
+            document.getElementById('eventModal').style.display = 'flex';
+            document.getElementById('modalEventText').focus();
+        }
+
+        function closeModal() {
+            document.getElementById('eventModal').style.display = 'none';
+            selectedDateStr = null;
+            editingIndex = null;
+        }
+
+        function renderModalList() {
+            const listBox = document.getElementById('currentEventsList');
+            const container = document.getElementById('notesContainer');
+            const dayNotes = selectedDateStr && Array.isArray(events[selectedDateStr]) ? events[selectedDateStr] : [];
+            container.innerHTML = '';
+
+            if (dayNotes.length === 0) {
+                listBox.style.display = 'none';
+                return;
+            }
+            listBox.style.display = 'block';
+
+            dayNotes.forEach((rawNote, idx) => {
+                const noteData = normalizeNoteItem(rawNote);
+                const row = document.createElement('div');
+                row.className = 'event-list-item';
+                const mainRow = document.createElement('div');
+                mainRow.className = 'note-main-row';
+
+                if (editingIndex === idx) {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'edit-note-input';
+                    input.value = noteData.text;
+                    input.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); saveEditedNote(idx, input.value); }
+                        if (e.key === 'Escape') { editingIndex = null; renderModalList(); }
+                    });
+
+                    const actions = document.createElement('div');
+                    actions.className = 'note-actions';
+
+                    const saveBtn = document.createElement('button');
+                    saveBtn.type = 'button';
+                    saveBtn.className = 'save-note-btn';
+                    saveBtn.textContent = '✓';
+                    saveBtn.title = 'Save';
+                    saveBtn.addEventListener('click', () => saveEditedNote(idx, input.value));
+
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.type = 'button';
+                    cancelBtn.className = 'cancel-edit-btn';
+                    cancelBtn.textContent = '✕';
+                    cancelBtn.title = 'Cancel';
+                    cancelBtn.addEventListener('click', () => { editingIndex = null; renderModalList(); });
+
+                    actions.appendChild(saveBtn);
+                    actions.appendChild(cancelBtn);
+                    mainRow.appendChild(input);
+                    mainRow.appendChild(actions);
+                } else {
+                    const textSpan = document.createElement('span');
+                    textSpan.className = 'note-text';
+                    textSpan.textContent = noteData.text;
+
+                    const actions = document.createElement('div');
+                    actions.className = 'note-actions';
+
+                    const editBtn = document.createElement('button');
+                    editBtn.type = 'button';
+                    editBtn.className = 'edit-note-btn';
+                    editBtn.textContent = '✎';
+                    editBtn.title = 'Edit note';
+                    editBtn.addEventListener('click', () => { editingIndex = idx; renderModalList(); });
+
+                    const delBtn = document.createElement('button');
+                    delBtn.type = 'button';
+                    delBtn.className = 'delete-note-btn';
+                    delBtn.textContent = '🗑';
+                    delBtn.title = 'Delete note';
+                    delBtn.addEventListener('click', () => deleteNote(idx));
+
+                    actions.appendChild(editBtn);
+                    actions.appendChild(delBtn);
+                    mainRow.appendChild(textSpan);
+                    mainRow.appendChild(actions);
+                }
+
+                row.appendChild(mainRow);
+
+                const alarmRow = document.createElement('div');
+                alarmRow.className = 'note-alarm-row';
+                const alarmLabel = document.createElement('label');
+                alarmLabel.className = `note-alarm-toggle${noteData.alarmEnabled ? ' alarm-enabled-label' : ''}`;
+                const alarmCheckbox = document.createElement('input');
+                alarmCheckbox.type = 'checkbox';
+                alarmCheckbox.checked = noteData.alarmEnabled;
+                alarmCheckbox.addEventListener('change', async () => {
+                    await updateNoteAlarm(idx, { alarmEnabled: alarmCheckbox.checked });
+                });
+                alarmLabel.appendChild(alarmCheckbox);
+                alarmLabel.appendChild(document.createTextNode('Alarm'));
+
+                const alarmTime = document.createElement('input');
+                alarmTime.type = 'time';
+                alarmTime.className = 'note-alarm-time';
+                alarmTime.value = noteData.alarmTime || '';
+                alarmTime.disabled = !noteData.alarmEnabled;
+                alarmTime.setAttribute('aria-label', `Alarm time for ${noteData.text}`);
+                alarmTime.addEventListener('change', async () => {
+                    await updateNoteAlarm(idx, { alarmTime: alarmTime.value });
+                });
+
+                const alarmStatus = document.createElement('span');
+                alarmStatus.className = 'note-alarm-status';
+                alarmStatus.textContent = noteData.alarmEnabled ? `Reminder at ${noteData.alarmTime}` : 'No reminder set';
+
+                alarmRow.appendChild(alarmLabel);
+                alarmRow.appendChild(alarmTime);
+                alarmRow.appendChild(alarmStatus);
+                row.appendChild(alarmRow);
+                container.appendChild(row);
+            });
+        }
+
+        async function updateNoteAlarm(idx, changes) {
+            if (!selectedDateStr || !Array.isArray(events[selectedDateStr])) return;
+            if (idx < 0 || idx >= events[selectedDateStr].length) return;
+
+            const note = normalizeNoteItem(events[selectedDateStr][idx]);
+            if (Object.prototype.hasOwnProperty.call(changes, 'alarmEnabled')) {
+                if (changes.alarmEnabled) {
+                    const permitted = await ensureNotificationPermission();
+                    if (!permitted) { renderModalList(); return; }
+                    if (!note.alarmTime) note.alarmTime = '08:00';
+                    note.alarmEnabled = true;
+                } else {
+                    note.alarmEnabled = false;
+                }
+                note.alarmFiredOn = null;
+            }
+            if (Object.prototype.hasOwnProperty.call(changes, 'alarmTime')) {
+                const value = String(changes.alarmTime || '');
+                if (value && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return;
+                note.alarmTime = value;
+                note.alarmFiredOn = null;
+                if (!value) note.alarmEnabled = false;
+            }
+
+            events[selectedDateStr][idx] = note;
+            markLocalMutation();
+            renderModalList();
+            renderCalendar();
+            saveToCloud();
+            checkDueAlarms();
+        }
+
+        async function addModalEvent() {
+            if (!selectedDateStr) return;
+            const input = document.getElementById('modalEventText');
+            const val = input.value.trim();
+            if (!val) return;
+
+            const alarmEnabledInput = document.getElementById('newAlarmEnabled');
+            const alarmTimeInput = document.getElementById('newAlarmTime');
+            let alarmEnabled = alarmEnabledInput.checked;
+            const alarmTime = alarmEnabled ? alarmTimeInput.value : '';
+            if (alarmEnabled) {
+                const permitted = await ensureNotificationPermission();
+                if (!permitted) alarmEnabled = false;
+            }
+
+            if (!Array.isArray(events[selectedDateStr])) events[selectedDateStr] = [];
+            events[selectedDateStr].push({ text: val, alarmTime: alarmEnabled ? (alarmTime || '08:00') : '', alarmEnabled, alarmFiredOn: null });
+            input.value = '';
+            alarmEnabledInput.checked = false;
+            alarmTimeInput.value = '08:00';
+            alarmTimeInput.disabled = true;
+            editingIndex = null;
+
+            markLocalMutation();
+            renderModalList();
+            renderCalendar();
+            saveToCloud();
+            checkDueAlarms();
+        }
+
+        function saveEditedNote(idx, newVal) {
+            if (!selectedDateStr || !Array.isArray(events[selectedDateStr])) return;
+            const trimmed = String(newVal || '').trim();
+            if (!trimmed) {
+                deleteNote(idx);
+                return;
+            }
+            const existing = normalizeNoteItem(events[selectedDateStr][idx]);
+            existing.text = trimmed;
+            events[selectedDateStr][idx] = existing;
+            editingIndex = null;
+
+            markLocalMutation();
+            renderModalList();
+            renderCalendar();
+            saveToCloud();
+        }
+
+        function deleteNote(idx) {
+            if (!selectedDateStr || !Array.isArray(events[selectedDateStr])) return;
+            if (idx < 0 || idx >= events[selectedDateStr].length) return;
+            events[selectedDateStr].splice(idx, 1);
+            if (events[selectedDateStr].length === 0) {
+                delete events[selectedDateStr];
+            }
+            editingIndex = null;
+
+            markLocalMutation();
+            renderModalList();
+            renderCalendar();
+            saveToCloud();
+        }
+
+        function openSettingsModal() {
+            syncInputsToLatestPhase();
+            renderPhasesList();
+            document.getElementById('settingsModal').style.display = 'flex';
+        }
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').style.display = 'none';
+        }
+
+        function showAlarmToast(message) {
+            const toast = document.getElementById('alarmToast');
+            if (!toast) return;
+            toast.textContent = message;
+            toast.style.display = 'block';
+            window.clearTimeout(showAlarmToast._timer);
+            showAlarmToast._timer = window.setTimeout(() => { toast.style.display = 'none'; }, 15000);
+        }
+
+        function updateNotificationPermissionUI() {
+            const button = document.getElementById('notificationPermissionBtn');
+            const help = document.getElementById('notificationHelp');
+            if (!button || !help) return;
+            if (!('Notification' in window)) {
+                button.disabled = true;
+                button.textContent = 'Notifications are not supported';
+                help.textContent = 'This browser does not support website notifications.';
+                return;
+            }
+            if (!window.isSecureContext) {
+                button.disabled = true;
+                button.textContent = 'Secure connection required';
+                help.textContent = 'Open this calendar using HTTPS to enable browser notifications.';
+                return;
+            }
+            button.disabled = Notification.permission === 'granted';
+            if (Notification.permission === 'granted') {
+                button.textContent = '✅ Alarm Notifications Enabled';
+                help.textContent = 'Notifications are allowed. Keep this calendar page open for scheduled reminders.';
+            } else if (Notification.permission === 'denied') {
+                button.textContent = '🔔 Notifications Blocked';
+                help.textContent = 'Notifications are blocked in browser settings. Allow them for this site to receive alarm alerts.';
+            } else {
+                button.textContent = '🔔 Enable Alarm Notifications';
+                help.textContent = 'Allow notifications, then keep this calendar page open for scheduled reminders.';
+            }
+        }
+
+        async function ensureNotificationPermission() {
+            if (!('Notification' in window)) {
+                alert('This browser does not support notifications.');
+                return false;
+            }
+            if (!window.isSecureContext) {
+                alert('Browser notifications require this calendar to be opened over HTTPS.');
+                return false;
+            }
+            if (Notification.permission === 'granted') return true;
+            if (Notification.permission === 'denied') {
+                alert('Notifications are blocked for this website. Please allow them in your browser site settings.');
+                updateNotificationPermissionUI();
+                return false;
+            }
+            try {
+                const permission = await Notification.requestPermission();
+                updateNotificationPermissionUI();
+                return permission === 'granted';
+            } catch (error) {
+                console.warn('Notification permission request failed:', error);
+                return false;
+            }
+        }
+
+        async function requestNotificationPermission() {
+            await ensureNotificationPermission();
+            updateNotificationPermissionUI();
+        }
+
+        async function sendAlarmNotification(noteText, dateStr, timeStr) {
+            const title = 'Medicine Schedule Reminder';
+            const body = `${noteText} • ${formatPrettyDate(dateStr)} at ${timeStr}`;
+            showAlarmToast(`⏰ Reminder: ${body}`);
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+            const options = {
+                body: body,
+                tag: `calendar-${dateStr}-${timeStr}-${noteText}`,
+                icon: 'icon-192.png',
+                badge: 'icon-192.png',
+                data: { dateStr: dateStr }
+            };
+
+            try {
+                let reg = swRegistration;
+                if (!reg && 'serviceWorker' in navigator) {
+                    try { reg = await navigator.serviceWorker.ready; } catch (_) { reg = null; }
+                }
+                if (reg && typeof reg.showNotification === 'function') {
+                    await reg.showNotification(title, options);
+                    return;
+                }
+                new Notification(title, options);
+            } catch (error) {
+                console.warn('Could not display notification:', error);
+                try { new Notification(title, options); } catch (_) {}
+            }
+        }
+
+        // --- Milestone reminder config (only two milestones) ---
+        const MILESTONE_KEY_PREFIX = 'milestoneFiredOn_';
+        const FIRST_MEDICINE_ALARM_TIME = '08:00';
+        const LAST_REST_ALARM_TIME = '17:30'; // change to '17:00' or '18:00' if you like
+
+        function getMilestoneForDate(info, nowMinutes) {
+            //   1) First Medicine Day  -> morning reminder (most important)
+            //   2) Last Rest Day       -> evening heads-up that medicine resumes tomorrow
+            let key = null, label = '', body = '', time = '';
+
+            if (info.isMedicine && info.stretchDay === 1) {
+                key = 'first_medicine';
+                label = '💊 Today is Day 1 of Medicine';
+                body = `First medicine day of the cycle (Day ${info.cycleDay} of ${info.totalCycle}). Don't forget your dose.`;
+                time = FIRST_MEDICINE_ALARM_TIME;
+            } else if (!info.isMedicine && info.stretchDay === info.stretchTotal) {
+                key = 'last_rest';
+                label = '🌿 Today is the Last Rest Day';
+                body = `Last rest day (Day ${info.cycleDay} of ${info.totalCycle}). Medicine resumes tomorrow — get ready.`;
+                time = LAST_REST_ALARM_TIME;
+            } else {
+                return null;
+            }
+
+            const [h, m] = time.split(':').map(Number);
+            const alarmMinutes = h * 60 + m;
+            const minutesLate = nowMinutes - alarmMinutes;
+            if (minutesLate < 0 || minutesLate > 30) return null; // outside grace window
+            return { key, label, body, time };
+        }
+
+        function checkDueAlarms() {
+            const now = new Date();
+            const todayStr = formatDateStr(now);
+            const nowMinutes = now.getHours() * 60 + now.getMinutes();
+            let changed = false;
+
+            // --- 1) Note alarms (unchanged) ---
+            const todaysNotes = Array.isArray(events[todayStr]) ? events[todayStr] : [];
+            todaysNotes.forEach((rawNote, index) => {
+                const note = normalizeNoteItem(rawNote);
+                if (!note.alarmEnabled || !note.alarmTime || note.alarmFiredOn === todayStr) return;
+                const [hour, minute] = note.alarmTime.split(':').map(Number);
+                const alarmMinutes = hour * 60 + minute;
+                const minutesLate = nowMinutes - alarmMinutes;
+                if (minutesLate < 0) return;
+
+                note.alarmFiredOn = todayStr;
+                events[todayStr][index] = note;
+                changed = true;
+                if (minutesLate <= 30) sendAlarmNotification(note.text, todayStr, note.alarmTime);
+            });
+
+            // --- 2) Milestone reminders (First Medicine Day / Last Rest Day) ---
+            const info = getCycleInfoForDate(now);
+            const milestone = getMilestoneForDate(info, nowMinutes);
+            if (milestone) {
+                const firedKey = MILESTONE_KEY_PREFIX + milestone.key + '_' + todayStr;
+                if (localStorage.getItem(firedKey) !== '1') {
+                    sendAlarmNotification(`${milestone.label} — ${milestone.body}`, todayStr, milestone.time);
+                    localStorage.setItem(firedKey, '1');
+                }
+            }
+
+            if (changed) {
+                markLocalMutation();
+                renderCalendar();
+                if (selectedDateStr === todayStr) renderModalList();
+                saveToCloud();
+            }
+        }
+
+        syncInputsToLatestPhase();
+        renderPhasesList();
+        updateDashboard();
+        renderCalendar();
+        updateNotificationPermissionUI();
+        loadFromCloud();
+        checkDueAlarms();
+        window.setInterval(checkDueAlarms, 15000);
+
+        document.getElementById('prevMonth').addEventListener('click', () => {
+            currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
+            renderCalendar();
+        });
+        document.getElementById('nextMonth').addEventListener('click', () => {
+            currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+            renderCalendar();
+        });
+
+        ['medDaysInput', 'restDaysInput', 'startDateInput', 'cycleOrderInput'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateDraftSummaryUI);
+            document.getElementById(id).addEventListener('change', updateDraftSummaryUI);
+        });
+
+        document.getElementById('modalEventText').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); addModalEvent(); }
+        });
+        document.getElementById('newAlarmEnabled').addEventListener('change', async (e) => {
+            const timeInput = document.getElementById('newAlarmTime');
+            if (e.target.checked) {
+                const permitted = await ensureNotificationPermission();
+                if (!permitted) e.target.checked = false;
+                if (!timeInput.value) timeInput.value = '08:00';
+            }
+            timeInput.disabled = !e.target.checked;
+        });
+
+        const eventModalEl = document.getElementById('eventModal');
+        eventModalEl.addEventListener('click', (e) => { if (e.target === eventModalEl) closeModal(); });
+        const settingsModalEl = document.getElementById('settingsModal');
+        settingsModalEl.addEventListener('click', (e) => { if (e.target === settingsModalEl) closeSettingsModal(); });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (eventModalEl.style.display === 'flex') closeModal();
+                if (settingsModalEl.style.display === 'flex') closeSettingsModal();
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                updateDashboard();
+                renderCalendar();
+                checkDueAlarms();
+                updateNotificationPermissionUI();
+                if (Date.now() - lastMutationTime > 5000) {
+                    loadFromCloud();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
